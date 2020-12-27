@@ -1,0 +1,246 @@
+ROUTINE ====================== threadjob in /u/cs/ugrad/chiem/lab2_list.c
+   254    426 Total samples (flat / cumulative)
+     .      .   80:         hash = 33 * hash + key[i];
+     .      .   81:     return hash % listnum;
+     .      .   82: }
+     .      .   83:                
+     .      .   84: void* threadjob(void* thread)
+---
+     .      .   85: {
+     .      .   86:     unsigned start = *((int *)thread);
+     .      .   87:     unsigned end = start + iters;
+     .      .   88:     SortedListElement_t *tele;
+     .      .   89:     SubList *sublist;
+     .      .   90:     pthread_mutex_t *mutex;
+     .      .   91:     int *spin;
+     .      .   92:     struct timespec t1, t2;
+     .      .   93:     
+     .      .   94:     for(unsigned i = start; i < end; i++)
+     .      .   95:     {
+     .      .   96:         tele = &element[i];
+     .      .   97:         const char *key = tele->key;
+     .      .   98:         sublist = &list[keyHash(key)];
+     .      .   99:         
+     .      .  100:         if(syncopt == 'm')
+     .      .  101:         {
+     .      .  102:             mutex = &sublist->mutex;
+     .      .  103:             clock_gettime(CLOCK_MONOTONIC, &t1);
+     .      .  104:             pthread_mutex_lock(mutex);
+     .      .  105:             clock_gettime(CLOCK_MONOTONIC, &t2);
+     .      .  106:             tmutex += (1000000000 * (t2.tv_sec - t1.tv_sec)) + (t2.tv_nsec - t1.tv_nsec);
+     .      .  107:             
+     .      .  108:             SortedList_insert(&sublist->head, tele);
+     .      .  109:             pthread_mutex_unlock(mutex);
+     .      .  110:         }
+     .      .  111:         else if (syncopt == 's')
+     .      .  112:         {
+     .      .  113:             spin = &sublist->spinlock;
+   164    164  114:             while(__sync_lock_test_and_set(spin, 1))
+     .      .  115:             {
+     .      .  116:                 continue;
+     .      .  117:             }
+     .     87  118:             SortedList_insert(&sublist->head, tele);
+     .      .  119:             __sync_lock_release(spin);
+     .      .  120:         }
+     .      .  121:         else
+     .      .  122:         {
+     .      .  123:             SortedList_insert(&sublist->head, tele);
+     .      .  124:         }
+     .      .  125:     }
+     .      .  126:     
+     .      .  127:     for(int i = 0; i < listnum; i++)
+     .      .  128:     {
+     .      .  129:         if(syncopt == 'm')
+     .      .  130:         {
+     .      .  131:             clock_gettime(CLOCK_MONOTONIC, &t1);
+     .      .  132:             pthread_mutex_lock(&list[i].mutex);
+     .      .  133:             clock_gettime(CLOCK_MONOTONIC, &t2);
+     .      .  134:             tmutex += (1000000000 * (t2.tv_sec - t1.tv_sec)) + (t2.tv_nsec - t1.tv_nsec);
+     .      .  135:             
+     .      .  136:             SortedList_length(&list[i].head);
+     .      .  137:             pthread_mutex_unlock(&list[i].mutex);
+     .      .  138:         }
+     .      .  139:         else if (syncopt == 's')
+     .      .  140:         {
+     .      .  141:             while(__sync_lock_test_and_set(&list[i].spinlock, 1))
+     .      .  142:             {
+     .      .  143:                 continue;
+     .      .  144:             }
+     .      1  145:             SortedList_length(&list[i].head);
+     .      .  146:             __sync_lock_release(&list[i].spinlock);
+     .      .  147:         }
+     .      .  148:         else
+     .      .  149:         {
+     .      .  150:             SortedList_length(&list[i].head);
+     .      .  151:         }
+     .      .  152:     }
+     .      .  153:     
+     .      .  154:     SortedListElement_t *temp;
+     .      .  155:     for(unsigned i = start; i < end; i++)
+     .      .  156:     {
+     .      .  157:         tele = &element[i];
+     .      .  158:         const char *key = tele->key;
+     .      .  159:         sublist = &list[keyHash(key)];
+     .      .  160:         
+     .      .  161:         if(syncopt == 'm')
+     .      .  162:         {
+     .      .  163:             mutex = &sublist->mutex;
+     .      .  164:             
+     .      .  165:             clock_gettime(CLOCK_MONOTONIC, &t1);
+     .      .  166:             pthread_mutex_lock(mutex);
+     .      .  167:             clock_gettime(CLOCK_MONOTONIC, &t2);
+     .      .  168:             tmutex += (1000000000 * (t2.tv_sec - t1.tv_sec)) + (t2.tv_nsec - t1.tv_nsec);
+     .      .  169:             
+     .      .  170:             temp = SortedList_lookup(&sublist->head, key);
+     .      .  171:             SortedList_delete(temp);
+     .      .  172:             pthread_mutex_unlock(mutex);
+     .      .  173:         }
+     .      .  174:         else if (syncopt == 's')
+     .      .  175:         {
+     .      .  176:             spin = &sublist->spinlock;
+    90     90  177:             while(__sync_lock_test_and_set(spin, 1))
+     .      .  178:             {
+     .      .  179:                 continue;
+     .      .  180:             }
+     .     84  181:             temp = SortedList_lookup(&sublist->head, key);
+     .      .  182:             SortedList_delete(temp);
+     .      .  183:             __sync_lock_release(spin);
+     .      .  184:         }
+     .      .  185:         else
+     .      .  186:         {
+     .      .  187:             temp = SortedList_lookup(&sublist->head, key);
+     .      .  188:             SortedList_delete(temp);
+     .      .  189:         }
+     .      .  190:     }
+     .      .  191:     
+     .      .  192:     return NULL;
+     .      .  193: }
+---
+     .      .  194: 
+     .      .  195: int main(int argc, char* argv[])
+     .      .  196: {
+     .      .  197:     int opt = 0, s_flag = 0;
+     .      .  198:     int listlen = 0;
+ROUTINE ====================== threadjob in /u/cs/ugrad/chiem/lab2_list.c
+   254    426 Total samples (flat / cumulative)
+     .      .   80:         hash = 33 * hash + key[i];
+     .      .   81:     return hash % listnum;
+     .      .   82: }
+     .      .   83:                
+     .      .   84: void* threadjob(void* thread)
+---
+     .      .   85: {
+     .      .   86:     unsigned start = *((int *)thread);
+     .      .   87:     unsigned end = start + iters;
+     .      .   88:     SortedListElement_t *tele;
+     .      .   89:     SubList *sublist;
+     .      .   90:     pthread_mutex_t *mutex;
+     .      .   91:     int *spin;
+     .      .   92:     struct timespec t1, t2;
+     .      .   93:     
+     .      .   94:     for(unsigned i = start; i < end; i++)
+     .      .   95:     {
+     .      .   96:         tele = &element[i];
+     .      .   97:         const char *key = tele->key;
+     .      .   98:         sublist = &list[keyHash(key)];
+     .      .   99:         
+     .      .  100:         if(syncopt == 'm')
+     .      .  101:         {
+     .      .  102:             mutex = &sublist->mutex;
+     .      .  103:             clock_gettime(CLOCK_MONOTONIC, &t1);
+     .      .  104:             pthread_mutex_lock(mutex);
+     .      .  105:             clock_gettime(CLOCK_MONOTONIC, &t2);
+     .      .  106:             tmutex += (1000000000 * (t2.tv_sec - t1.tv_sec)) + (t2.tv_nsec - t1.tv_nsec);
+     .      .  107:             
+     .      .  108:             SortedList_insert(&sublist->head, tele);
+     .      .  109:             pthread_mutex_unlock(mutex);
+     .      .  110:         }
+     .      .  111:         else if (syncopt == 's')
+     .      .  112:         {
+     .      .  113:             spin = &sublist->spinlock;
+   164    164  114:             while(__sync_lock_test_and_set(spin, 1))
+     .      .  115:             {
+     .      .  116:                 continue;
+     .      .  117:             }
+     .     87  118:             SortedList_insert(&sublist->head, tele);
+     .      .  119:             __sync_lock_release(spin);
+     .      .  120:         }
+     .      .  121:         else
+     .      .  122:         {
+     .      .  123:             SortedList_insert(&sublist->head, tele);
+     .      .  124:         }
+     .      .  125:     }
+     .      .  126:     
+     .      .  127:     for(int i = 0; i < listnum; i++)
+     .      .  128:     {
+     .      .  129:         if(syncopt == 'm')
+     .      .  130:         {
+     .      .  131:             clock_gettime(CLOCK_MONOTONIC, &t1);
+     .      .  132:             pthread_mutex_lock(&list[i].mutex);
+     .      .  133:             clock_gettime(CLOCK_MONOTONIC, &t2);
+     .      .  134:             tmutex += (1000000000 * (t2.tv_sec - t1.tv_sec)) + (t2.tv_nsec - t1.tv_nsec);
+     .      .  135:             
+     .      .  136:             SortedList_length(&list[i].head);
+     .      .  137:             pthread_mutex_unlock(&list[i].mutex);
+     .      .  138:         }
+     .      .  139:         else if (syncopt == 's')
+     .      .  140:         {
+     .      .  141:             while(__sync_lock_test_and_set(&list[i].spinlock, 1))
+     .      .  142:             {
+     .      .  143:                 continue;
+     .      .  144:             }
+     .      1  145:             SortedList_length(&list[i].head);
+     .      .  146:             __sync_lock_release(&list[i].spinlock);
+     .      .  147:         }
+     .      .  148:         else
+     .      .  149:         {
+     .      .  150:             SortedList_length(&list[i].head);
+     .      .  151:         }
+     .      .  152:     }
+     .      .  153:     
+     .      .  154:     SortedListElement_t *temp;
+     .      .  155:     for(unsigned i = start; i < end; i++)
+     .      .  156:     {
+     .      .  157:         tele = &element[i];
+     .      .  158:         const char *key = tele->key;
+     .      .  159:         sublist = &list[keyHash(key)];
+     .      .  160:         
+     .      .  161:         if(syncopt == 'm')
+     .      .  162:         {
+     .      .  163:             mutex = &sublist->mutex;
+     .      .  164:             
+     .      .  165:             clock_gettime(CLOCK_MONOTONIC, &t1);
+     .      .  166:             pthread_mutex_lock(mutex);
+     .      .  167:             clock_gettime(CLOCK_MONOTONIC, &t2);
+     .      .  168:             tmutex += (1000000000 * (t2.tv_sec - t1.tv_sec)) + (t2.tv_nsec - t1.tv_nsec);
+     .      .  169:             
+     .      .  170:             temp = SortedList_lookup(&sublist->head, key);
+     .      .  171:             SortedList_delete(temp);
+     .      .  172:             pthread_mutex_unlock(mutex);
+     .      .  173:         }
+     .      .  174:         else if (syncopt == 's')
+     .      .  175:         {
+     .      .  176:             spin = &sublist->spinlock;
+    90     90  177:             while(__sync_lock_test_and_set(spin, 1))
+     .      .  178:             {
+     .      .  179:                 continue;
+     .      .  180:             }
+     .     84  181:             temp = SortedList_lookup(&sublist->head, key);
+     .      .  182:             SortedList_delete(temp);
+     .      .  183:             __sync_lock_release(spin);
+     .      .  184:         }
+     .      .  185:         else
+     .      .  186:         {
+     .      .  187:             temp = SortedList_lookup(&sublist->head, key);
+     .      .  188:             SortedList_delete(temp);
+     .      .  189:         }
+     .      .  190:     }
+     .      .  191:     
+     .      .  192:     return NULL;
+     .      .  193: }
+---
+     .      .  194: 
+     .      .  195: int main(int argc, char* argv[])
+     .      .  196: {
+     .      .  197:     int opt = 0, s_flag = 0;
+     .      .  198:     int listlen = 0;
