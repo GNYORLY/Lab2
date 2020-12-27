@@ -1,0 +1,78 @@
+NAME: Jeannie Chiem
+EMAIL: gnyorly@gmail.com
+ID: 504666652
+
+README
+
+Contents:  Makefile README lab2_add.c lab2_list.c SortedList.c SortedList.h test.sh lab2_add.csv lab2_list.csv
+		(lab2_add-1.png - lab2_add-5.png) (lab2_list-1.png - lab2_list-1.png)
+
+USAGE
+
+	lab2_add —threads=# —iterations=# —yield —sync=[msc]
+	lab2_list —threads=# —iterations=# —yield=[idl] —sync=[msc]
+
+m = mutex
+s = spin-lock
+c = compare and swap
+
+i = insert
+d = delete
+l = lookup
+
+Makefile
+This completes all the necessary steps to compile the program into a distributable form as well as other tasks such as checking or removing the program.
+
+Makefile Options
+build - compiles the programs
+tests - creates test data CSV files
+graphs - uses gnuplot to turn CSV data sets into plots
+dist - creates tarball of program with all necessary files
+clean - deletes all output from makefile
+
+lab2_add.c lab2_list.c SortedList.c SortedList.h
+These files contain the source code of the programs.
+
+test.sh
+This file contains the scripts to test and create the CSV data from the program.
+
+(lab2_add-1.png - lab2_add-5.png) (lab2_list-1.png - lab2_list-1.png)
+These files contain the plotted data from the CSV data from the test of the program.
+
+lab2_add.csv lab2_list.csv
+These files contain the CSV data from the program test.
+
+QUESTIONS
+
+2.1.1
+From my tests, it took 2 threads to get consistent errors at 10000 and 100000 iterations, 6 threads to get consistent errors at 1000, and around 250 threads for consistent errors at 100. The reason it took so many iterations before errors appeared was because when there are less iterations, threads don’t spend as long of a time in the 
+critical section and therefore, it is easier to avoid race conditions. There is a much less probability in threads stepping over each other with less iterations so they seldom fail.
+
+2.1.2
+Yield runs are so much slower because they work by regularly interrupting the threads which can take up a lot of time. This additional time goes into the context switching
+process which involves stopping the current thread, saving its state, retrieving the state of another thread, and then starting that thread. It is not possible to get valid 
+per-operation timings using yield for this reason. Much of the operating time of the program does not actually go into performing the operations themselves but are spent on the
+overhead time of the yield interruptions so the per-operation timings are inaccurate.
+
+2.1.3
+The average cost per operation drops with increasing iterations because it takes a lot of overhead time to start a process due to having to initialize everything like creating
+all the threads, but once that part is done, everything runs much more quickly. Because of the long start time, the overall average cost per operation when there are less iterations
+ends up being larger than when there are many iterations. Looking at the graphs, we can see how the cost per operation decreases as the number of iterations approach infinity and at some point, we can see that the cost stops decreasing significantly and stabilizes, that is where the correct cost is.
+
+2.1.4
+When there are less threads, there is less opportunity for them to step over each other and the amount of time they need to wait to get into a critical section decreases as well since
+there are less threads waiting. In this case, the threads run almost sequentially so the locks are not needed as much and perform similarly to when there are no locks at all. The protected
+operations slow down as the number of threads rises because more threads means more chances for them to step over each other due to race conditions and thus the locks need to be used
+more often with more threads waiting. This causes the program to slow down.
+	
+2.2.1
+As the number of threads grows, the time per operation cost grows for both part 1 and part 2. They both curve downward at the start but then back upward as the number of threads grow. This is due to the starting overhead time when there is less threads. As that number grows, this overhead matters less but other issues arise due to race conditions and protection. The time per operation in part 2 grows at a much faster rate than part one since doing a sorted list operation is much more costly than just simply adding. 
+
+2.2.2
+With both mutex and spin locks, the time per operation increases as the number of threads increases however, the spin locks start off with a shorter per operation time than mutex
+when there are less threads but increases at a much higher rate than mutex as the number of threads increases. The mutex graph curve starts of higher than the spin lock but its operation time stabilizes quickly.
+This is because spin locks work by making threads loop constantly to check if the lock is open whereas mutex works by putting a thread to sleep until it is signaled to wake up. Since spin locks keep the threads working 
+even when they are locked out of an area, they waste more CPU cycles the more threads there are and increase operation time at a much larger rate. The mutex lock on the other hand does not take up much more clock cycles
+with each thread so its per operation time increases at a smaller rate.
+
+
